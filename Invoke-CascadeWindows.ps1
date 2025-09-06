@@ -300,7 +300,10 @@ function Get-WindowPsoList {
         $handleToPsoMap[$hWnd] = $pso
     }
 
-    return $windowPsoList
+    # Sort by z-order
+    $windowPsoList2 = $windowPsoList | Sort-Object -Property ZOrder
+
+    return $windowPsoList2
 }
 
 function Move-Windows {
