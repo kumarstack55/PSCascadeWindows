@@ -309,25 +309,28 @@ function Move-Windows {
         [System.Drawing.Rectangle]$WorkingArea,
 
         [Parameter(Mandatory)]
-        [System.Collections.Generic.List[PSObject]]$WindowPsoList
+        [System.Collections.Generic.List[PSObject]]$WindowPsoList,
+
+        [int]$Margin = 16,
+        [int]$CascadeStepX = 160,
+        [int]$CascadeStepY = 40
     )
 
     # Define cascade area
-    $margin = 20
+    $Margin = 20
     $cascadeRect = [PSCustomObject]@{
-        Left = $WorkingArea.X + $margin
-        Top = $WorkingArea.Y + $margin
-        Right = $WorkingArea.Right - $margin * 2
-        Bottom = $WorkingArea.Bottom - $margin * 2
+        Left = $WorkingArea.X + $Margin
+        Top = $WorkingArea.Y + $Margin
+        Right = $WorkingArea.Right - $Margin * 2
+        Bottom = $WorkingArea.Bottom - $Margin * 2
     }
     $cascadeWidth = $cascadeRect.Right - $cascadeRect.Left
     $cascadeHeight = $cascadeRect.Bottom - $cascadeRect.Top
 
     # Calculate window dimensions
-    $diff = 32
     $windowsCount = $WindowPsoList.Count
-    $windowHeight = [int]($cascadeHeight - $diff * ($windowsCount - 1))
-    $windowWidth = [int]($cascadeWidth - $diff * ($windowsCount - 1))
+    $windowWidth = [int]($cascadeWidth - $CascadeStepX * ($windowsCount - 1))
+    $windowHeight = [int]($cascadeHeight - $CascadeStepY * ($windowsCount - 1))
 
     # Resize and move windows
     for ($index = 0; $index -lt $windowsCount; $index++) {
@@ -335,8 +338,8 @@ function Move-Windows {
 
         $hWnd = $pso.Handle
 
-        $x = $cascadeRect.Left + $diff * $index
-        $y = $cascadeRect.Top + $diff * $index
+        $x = $cascadeRect.Left + $CascadeStepX * $index
+        $y = $cascadeRect.Top + $CascadeStepY * $index
 
         $isOk = [User32]::SetWindowPos($hWnd, [IntPtr]::Zero, $x, $y, $windowWidth, $windowHeight, 0)
         if (-not $isOk) {
