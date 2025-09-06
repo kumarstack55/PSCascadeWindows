@@ -2,6 +2,8 @@
 
 This PowerShell script cascades all visible windows on the desktop.
 
+![screenshot](./images/screenshot.png)
+
 ## Requirements
 
 - Microsoft Windows
