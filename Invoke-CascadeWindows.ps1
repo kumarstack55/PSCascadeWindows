@@ -75,14 +75,6 @@ function Get-WindowHandleList {
     return $list
 }
 
-filter Select-VisibleWindowHandles {
-    process {
-        if ([User32]::IsWindowVisible($_)) {
-            $_
-        }
-    }
-}
-
 function Get-WindowTitle {
     param(
         [Parameter(Mandatory)]
@@ -97,28 +89,6 @@ function Get-WindowTitle {
     }
 
     return $sb.ToString()
-}
-
-function Get-WindowPosition {
-    param(
-        [Parameter(Mandatory)]
-        [IntPtr]$hWnd
-    )
-
-    $rect = New-Object RECT
-    $isOk = [User32]::GetWindowRect($hWnd, [ref]$rect)
-    if (-not $isOk) {
-        throw "Failed to get window rect for handle $Handle."
-    }
-
-    return @{
-        Left   = $rect.Left
-        Top    = $rect.Top
-        Right  = $rect.Right
-        Bottom = $rect.Bottom
-        Width  = $rect.Right - $rect.Left
-        Height = $rect.Bottom - $rect.Top
-    }
 }
 
 function Get-ProcessId {
