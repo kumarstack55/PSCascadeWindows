@@ -12,7 +12,7 @@ This PowerShell script cascades all visible windows on the desktop.
 ```powershell
 # powershell
 
-git clone https://...
+git clone https://github.com/kumarstack55/PSCascadeWindows.git
 
 Set-Location .\PSCascadeWindows\
 .\Invoke-CascadeWindows.ps1
