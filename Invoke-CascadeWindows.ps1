@@ -117,7 +117,7 @@ function Test-TooSmallWindow {
     $rect = New-Object RECT
     $isOk = [User32]::GetWindowRect($hWnd, [ref]$rect)
     if (-not $isOk) {
-        throw "Failed to get window rect for handle $Handle."
+        throw "Failed to get window rect for handle ${hWnd}."
     }
 
     $width = $rect.Right - $rect.Left
