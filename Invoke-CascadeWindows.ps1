@@ -340,6 +340,8 @@ function Invoke-CascadeWindows {
     # Get working area of the primary screen
     $primaryScreen = [System.Windows.Forms.Screen]::PrimaryScreen
     $workingArea = $primaryScreen.WorkingArea
+
+    # Cascade windows
     Move-Windows -WorkingArea $workingArea -WindowPsoList $windowPsoList
 }
 
