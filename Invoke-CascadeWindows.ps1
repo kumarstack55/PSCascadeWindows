@@ -309,7 +309,10 @@ function Move-Windows {
     $windowHeight = [int]($cascadeHeight - $CascadeStepY * ($windowsCount - 1))
 
     # Resize and move windows
-    for ($index = 0; $index -lt $windowsCount; $index++) {
+    #
+    # Some applications such like google chrome, etc are changed z-order when resizing/moving.
+    # So, we move windows in z-order from bottom to top.
+    for ($index = $windowsCount - 1; $index -ge 0; $index--) {
         $pso = $WindowPsoList[$index]
 
         $hWnd = $pso.Handle
