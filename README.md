@@ -4,6 +4,12 @@ This PowerShell script cascades all visible windows on the desktop.
 
 ![screenshot](./images/screenshot.png)
 
+## Motivation
+
+- Starting with Windows 11, Microsoft no longer provides a built-in feature for cascading windows.
+  - <https://learn.microsoft.com/en-us/answers/questions/5516749/cascade-windows-11>
+- When displaying windows in cascade view, make the top-right corner of each window wider to allow access to the window behind it. Make it wider than the close button to prevent accidentally closing the window.
+
 ## Requirements
 
 - Microsoft Windows 11
