@@ -40,6 +40,9 @@ public class User32 {
 
     [DllImport("user32.dll")]
     public static extern bool SetWindowPos(IntPtr hWnd, IntPtr hWndInsertAfter, int X, int Y, int cx, int cy, uint uFlags);
+
+    [DllImport("user32.dll")]
+    public static extern bool BringWindowToTop(IntPtr hWnd);
 }
 
 public class Dwm {
@@ -318,6 +321,12 @@ function Move-Windows {
         $isOk = [User32]::SetWindowPos($hWnd, [IntPtr]::Zero, $x, $y, $windowWidth, $windowHeight, $NO_FLAGS)
         if (-not $isOk) {
             throw "Failed to move window: $($pso.Handle) $($pso.Title)"
+        }
+
+        # Bring to top in z-order
+        $isOk = [User32]::BringWindowToTop($hWnd)
+        if (-not $isOk) {
+            throw "Failed to bring window to top: $($pso.Handle) $($pso.Title)"
         }
     }
 }
