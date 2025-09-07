@@ -78,12 +78,12 @@ function Get-WindowHandleList {
 function Get-WindowTitle {
     param(
         [Parameter(Mandatory)]
-        [IntPtr]$hWnd
+        [IntPtr]$Handle
     )
 
     $maxCount = 256
     $sb = New-Object System.Text.StringBuilder $maxCount
-    $n = [User32]::GetWindowText($hWnd, $sb, $sb.Capacity)
+    $n = [User32]::GetWindowText($Handle, $sb, $sb.Capacity)
     if ($n -ge $sb.Capacity) {
         throw "Window title is too long. (n: $n)"
     }
@@ -94,13 +94,13 @@ function Get-WindowTitle {
 function Get-ProcessId {
     param(
         [Parameter(Mandatory)]
-        [IntPtr]$hWnd
+        [IntPtr]$Handle
     )
 
     $processId = 0
-    $threadId = [User32]::GetWindowThreadProcessId($hWnd, [ref]$processId)
+    $threadId = [User32]::GetWindowThreadProcessId($Handle, [ref]$processId)
     if ($threadId -eq 0) {
-        throw "Failed to get process ID for handle $hWnd."
+        throw "Failed to get process ID for handle $Handle."
     }
 
     return $processId
@@ -109,15 +109,15 @@ function Get-ProcessId {
 function Test-TooSmallWindow {
     param(
         [Parameter(Mandatory)]
-        [IntPtr]$hWnd,
+        [IntPtr]$Handle,
         [int]$minWidth = 80,
         [int]$minHeight = 80
     )
 
     $rect = New-Object RECT
-    $isOk = [User32]::GetWindowRect($hWnd, [ref]$rect)
+    $isOk = [User32]::GetWindowRect($Handle, [ref]$rect)
     if (-not $isOk) {
-        throw "Failed to get window rect for handle ${hWnd}."
+        throw "Failed to get window rect for handle ${Handle}."
     }
 
     $width = $rect.Right - $rect.Left
@@ -129,11 +129,11 @@ function Test-TooSmallWindow {
 function Test-WindowHasOwner {
     param(
         [Parameter(Mandatory)]
-        [IntPtr]$hWnd
+        [IntPtr]$Handle
     )
 
     $GW_OWNER = 4
-    $ownerHandle = [User32]::GetWindow($hWnd, $GW_OWNER)
+    $ownerHandle = [User32]::GetWindow($Handle, $GW_OWNER)
     $hasOwner = $ownerHandle -ne [IntPtr]::Zero
     return $hasOwner
 }
@@ -141,14 +141,14 @@ function Test-WindowHasOwner {
 function Test-IsCloakedWindow {
     param(
         [Parameter(Mandatory)]
-        [IntPtr]$hWnd
+        [IntPtr]$Handle
     )
 
     $DWMWA_CLOAKED = 14
     $isCloaked = 0
-    $hresult = [Dwm]::DwmGetWindowAttribute($hWnd, $DWMWA_CLOAKED, [ref]$isCloaked, 4)
+    $hresult = [Dwm]::DwmGetWindowAttribute($Handle, $DWMWA_CLOAKED, [ref]$isCloaked, 4)
     if ($hresult -ne 0) {
-        throw "Failed to get DWM window attribute for handle $hWnd. HRESULT: $hresult"
+        throw "Failed to get DWM window attribute for handle $Handle. HRESULT: $hresult"
     }
 
     return $isCloaked -ne 0
@@ -157,12 +157,12 @@ function Test-IsCloakedWindow {
 function Get-ClassName {
     param(
         [Parameter(Mandatory)]
-        [IntPtr]$hWnd
+        [IntPtr]$Handle
     )
 
     $maxCount = 256
     $sb = New-Object System.Text.StringBuilder $maxCount
-    $n = [User32]::GetClassName($hWnd, $sb, $sb.Capacity)
+    $n = [User32]::GetClassName($Handle, $sb, $sb.Capacity)
     if ($n -ge $sb.Capacity) {
         throw "Class name is too long. (n: $n)"
     }
@@ -172,29 +172,29 @@ function Get-ClassName {
 
 filter Select-NormalWindow {
     process {
-        $hWnd = $_
+        $handle = $_
 
         # Skip invisible windows
-        if (-not [User32]::IsWindowVisible($hWnd)) {
+        if (-not [User32]::IsWindowVisible($handle)) {
             return
         }
 
         # Skip cloaked windows (e.g., UWP apps)
-        if (Test-IsCloakedWindow -hWnd $hWnd) {
+        if (Test-IsCloakedWindow -Handle $handle) {
             return
         }
 
         # Skip windows that have an owner (e.g., dialog boxes)
-        if (Test-WindowHasOwner -hWnd $hWnd) {
+        if (Test-WindowHasOwner -Handle $handle) {
             return
         }
 
         # Skip windows that are too small
-        if (Test-TooSmallWindow -hWnd $hWnd) {
+        if (Test-TooSmallWindow -Handle $handle) {
             return
         }
 
-        $className = Get-ClassName -hWnd $hWnd
+        $className = Get-ClassName -Handle $handle
         $excludeClassNameExists = [hashtable]@{
             "Progman" = $true            # explorer
             #"Shell_TrayWnd" = $true      # Taskbar
@@ -205,7 +205,7 @@ filter Select-NormalWindow {
             return
         }
 
-        $hWnd
+        $handle
     }
 }
 
@@ -244,20 +244,20 @@ function Get-WindowPsoList {
     # Create PSObject list
     $windowPsoList = [System.Collections.Generic.List[PSObject]]::new()
     $handleToPsoMap = @{}
-    foreach ($hWnd in $handles) {
-        $title = Get-WindowTitle -hWnd $hWnd
-        $processId = Get-ProcessId -hWnd $hWnd
-        $className = Get-ClassName -hWnd $hWnd
+    foreach ($handle in $handles) {
+        $title = Get-WindowTitle -Handle $handle
+        $processId = Get-ProcessId -Handle $handle
+        $className = Get-ClassName -Handle $handle
         $process = Get-Process -Id $processId
         $processName = $process.ProcessName
 
-        $isMaximized = [User32]::IsZoomed($hWnd)
+        $isMaximized = [User32]::IsZoomed($handle)
 
-        $zOrder = $zOrderedHandleToOrderMap[$hWnd]
+        $zOrder = $zOrderedHandleToOrderMap[$handle]
 
         $hashtable = @{
             Title  = $title
-            Handle = $hWnd
+            Handle = $handle
             ZOrder = $zOrder
             ProcessName = $processName
             ProcessId   = $processId
@@ -267,7 +267,7 @@ function Get-WindowPsoList {
 
         $pso = [PSCustomObject]$hashtable
         $windowPsoList.Add($pso)
-        $handleToPsoMap[$hWnd] = $pso
+        $handleToPsoMap[$handle] = $pso
     }
 
     # Sort by z-order
@@ -312,15 +312,15 @@ function Move-Windows {
     for ($index = $windowsCount - 1; $index -ge 0; $index--) {
         $pso = $WindowPsoList[$index]
 
-        $hWnd = $pso.Handle
+        $handle = $pso.Handle
 
         $x = $cascadeRect.Left + $CascadeStepX * $index
         $y = $cascadeRect.Top + $CascadeStepY * $index
 
         $NO_FLAGS = 0
-        $isOk = [User32]::SetWindowPos($hWnd, [IntPtr]::Zero, $x, $y, $windowWidth, $windowHeight, $NO_FLAGS)
+        $isOk = [User32]::SetWindowPos($handle, [IntPtr]::Zero, $x, $y, $windowWidth, $windowHeight, $NO_FLAGS)
         if (-not $isOk) {
-            throw "Failed to move window: $($pso.Handle) $($pso.Title)"
+            throw "Failed to move window: $handle $($pso.Title)"
         }
     }
 }
@@ -335,9 +335,9 @@ function Invoke-CascadeWindows {
     # Restore maximized windows
     $SW_RESTORE = 9
     foreach ($pso in $windowPsoList) {
-        $hWnd = $pso.Handle
-        if ($hWnd -ne [IntPtr]::Zero -and [User32]::IsZoomed($hWnd)) {
-            [User32]::ShowWindow($hWnd, $SW_RESTORE) | Out-Null
+        $handle = $pso.Handle
+        if ($handle -ne [IntPtr]::Zero -and [User32]::IsZoomed($handle)) {
+            [User32]::ShowWindow($handle, $SW_RESTORE) | Out-Null
         }
     }
 
