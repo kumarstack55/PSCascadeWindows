@@ -6,7 +6,7 @@ This PowerShell script cascades all visible windows on the desktop.
 
 ## Requirements
 
-- Microsoft Windows
+- Microsoft Windows 11
   - Windows PowerShell 5.1+
 
 ## Usage
