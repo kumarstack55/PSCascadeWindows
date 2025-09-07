@@ -314,7 +314,8 @@ function Move-Windows {
         $x = $cascadeRect.Left + $CascadeStepX * $index
         $y = $cascadeRect.Top + $CascadeStepY * $index
 
-        $isOk = [User32]::SetWindowPos($hWnd, [IntPtr]::Zero, $x, $y, $windowWidth, $windowHeight, 0)
+        $NO_FLAGS = 0
+        $isOk = [User32]::SetWindowPos($hWnd, [IntPtr]::Zero, $x, $y, $windowWidth, $windowHeight, $NO_FLAGS)
         if (-not $isOk) {
             throw "Failed to move window: $($pso.Handle) $($pso.Title)"
         }
