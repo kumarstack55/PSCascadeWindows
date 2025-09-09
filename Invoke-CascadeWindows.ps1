@@ -56,6 +56,110 @@ public struct RECT {
 }
 "@
 
+function Get-ClassName {
+    param(
+        [Parameter(Mandatory)]
+        [IntPtr]$Handle
+    )
+
+    $maxCount = 256
+    $sb = New-Object System.Text.StringBuilder $maxCount
+    $n = [User32]::GetClassName($Handle, $sb, $sb.Capacity)
+    if ($n -ge $sb.Capacity) {
+        throw "Class name is too long. (n: ${n})"
+    }
+
+    return $sb.ToString()
+}
+
+function Get-ProcessId {
+    param(
+        [Parameter(Mandatory)]
+        [IntPtr]$Handle
+    )
+
+    $processId = 0
+    $threadId = [User32]::GetWindowThreadProcessId($Handle, [ref]$processId)
+    if ($threadId -eq 0) {
+        throw "Failed to get process ID for handle ${Handle}."
+    }
+
+    return $processId
+}
+
+function Get-ProcessName {
+    param(
+        [Parameter(Mandatory)]
+        [IntPtr]$Handle
+    )
+
+    $processId = Get-ProcessId -Handle $Handle
+    try {
+        $process = Get-Process -Id $processId -ErrorAction Stop
+        return $process.ProcessName
+    } catch {
+        return ""
+    }
+}
+function Get-WindowTitle {
+    param(
+        [Parameter(Mandatory)]
+        [IntPtr]$Handle
+    )
+
+    $maxCount = 256
+    $sb = New-Object System.Text.StringBuilder $maxCount
+    $n = [User32]::GetWindowText($Handle, $sb, $sb.Capacity)
+    if ($n -ge $sb.Capacity) {
+        throw "Window title is too long. (n: ${n})"
+    }
+
+    return $sb.ToString()
+}
+function Test-WindowIsMaximized {
+    param(
+        [Parameter(Mandatory)]
+        [IntPtr]$Handle
+    )
+
+    return [User32]::IsZoomed($Handle)
+}
+
+class Window {
+    [IntPtr]$Handle
+    [string]$ClassName
+    [int]$ProcessId
+    [string]$ProcessName
+    [string]$Title
+    [int]$ZOrder
+    [bool]$IsMaximized
+}
+
+class WindowFactory {
+    hidden [hashtable]$ZOrderedHandleToOrderMap
+
+    WindowFactory([hashtable]$ZOrderedHandleToOrderMap) {
+        $this.ZOrderedHandleToOrderMap = $ZOrderedHandleToOrderMap
+    }
+    [Window] Create([IntPtr]$Handle) {
+        $window = [Window]::new()
+
+        if ([IntPtr]::Zero -eq $Handle) {
+            throw "Handle is zero."
+        }
+        $window.Handle = $Handle
+
+        $window.ClassName = Get-ClassName -Handle $Handle
+        $window.ProcessId = Get-ProcessId -Handle $Handle
+        $window.ProcessName = Get-ProcessName -Handle $Handle
+        $window.Title = Get-WindowTitle -Handle $Handle
+        $window.ZOrder = $this.ZOrderedHandleToOrderMap[$Handle]
+        $window.IsMaximized = Test-WindowIsMaximized -Handle $Handle
+
+        return $window
+    }
+}
+
 function Get-WindowHandleList {
     param()
 
@@ -73,37 +177,6 @@ function Get-WindowHandleList {
     }
 
     return $list
-}
-
-function Get-WindowTitle {
-    param(
-        [Parameter(Mandatory)]
-        [IntPtr]$Handle
-    )
-
-    $maxCount = 256
-    $sb = New-Object System.Text.StringBuilder $maxCount
-    $n = [User32]::GetWindowText($Handle, $sb, $sb.Capacity)
-    if ($n -ge $sb.Capacity) {
-        throw "Window title is too long. (n: $n)"
-    }
-
-    return $sb.ToString()
-}
-
-function Get-ProcessId {
-    param(
-        [Parameter(Mandatory)]
-        [IntPtr]$Handle
-    )
-
-    $processId = 0
-    $threadId = [User32]::GetWindowThreadProcessId($Handle, [ref]$processId)
-    if ($threadId -eq 0) {
-        throw "Failed to get process ID for handle $Handle."
-    }
-
-    return $processId
 }
 
 function Test-TooSmallWindow {
@@ -135,6 +208,7 @@ function Test-WindowHasOwner {
     $GW_OWNER = 4
     $ownerHandle = [User32]::GetWindow($Handle, $GW_OWNER)
     $hasOwner = $ownerHandle -ne [IntPtr]::Zero
+
     return $hasOwner
 }
 
@@ -146,28 +220,12 @@ function Test-IsCloakedWindow {
 
     $DWMWA_CLOAKED = 14
     $isCloaked = 0
-    $hresult = [Dwm]::DwmGetWindowAttribute($Handle, $DWMWA_CLOAKED, [ref]$isCloaked, 4)
-    if ($hresult -ne 0) {
-        throw "Failed to get DWM window attribute for handle $Handle. HRESULT: $hresult"
+    $hResult = [Dwm]::DwmGetWindowAttribute($Handle, $DWMWA_CLOAKED, [ref]$isCloaked, 4)
+    if ($hResult -ne 0) {
+        throw "Failed to get DWM window attribute for handle ${Handle}. HRESULT: ${hResult}"
     }
 
     return $isCloaked -ne 0
-}
-
-function Get-ClassName {
-    param(
-        [Parameter(Mandatory)]
-        [IntPtr]$Handle
-    )
-
-    $maxCount = 256
-    $sb = New-Object System.Text.StringBuilder $maxCount
-    $n = [User32]::GetClassName($Handle, $sb, $sb.Capacity)
-    if ($n -ge $sb.Capacity) {
-        throw "Class name is too long. (n: $n)"
-    }
-
-    return $sb.ToString()
 }
 
 filter Select-NormalWindow {
@@ -205,7 +263,7 @@ filter Select-NormalWindow {
             return
         }
 
-        $handle
+        return $handle
     }
 }
 
@@ -227,62 +285,42 @@ function Get-ZOrderedHandleToOrderMap {
     return $zOrderedHandleToOrderMap
 }
 
-function Get-WindowPsoList {
+function Get-WindowList {
     param()
 
     # Get all window handles
     $allHandles = Get-WindowHandleList
-    write-host "allHandles.Count: $($allHandles.Count)"
+    Write-Host "allHandles.Count: $($allHandles.Count)"
 
     # Filter to get only normal visible windows
     $handles = @($allHandles | Select-NormalWindow)
-    write-host "visibleHandles.Count: $($handles.Count)"
+    Write-Host "visibleHandles.Count: $($handles.Count)"
 
-    # Get z-order
+    # Create window list
+    $windowList = [System.Collections.Generic.List[Window]]::new()
     $zOrderedHandleToOrderMap = Get-ZOrderedHandleToOrderMap
-
-    # Create PSObject list
-    $windowPsoList = [System.Collections.Generic.List[PSObject]]::new()
-    $handleToPsoMap = @{}
+    $windowFactory = [WindowFactory]::new($zOrderedHandleToOrderMap)
     foreach ($handle in $handles) {
-        $title = Get-WindowTitle -Handle $handle
-        $processId = Get-ProcessId -Handle $handle
-        $className = Get-ClassName -Handle $handle
-        $process = Get-Process -Id $processId
-        $processName = $process.ProcessName
-
-        $isMaximized = [User32]::IsZoomed($handle)
-
-        $zOrder = $zOrderedHandleToOrderMap[$handle]
-
-        $hashtable = @{
-            Title  = $title
-            Handle = $handle
-            ZOrder = $zOrder
-            ProcessName = $processName
-            ProcessId   = $processId
-            ClassName = $className
-            IsMaximized = $isMaximized
-        }
-
-        $pso = [PSCustomObject]$hashtable
-        $windowPsoList.Add($pso)
-        $handleToPsoMap[$handle] = $pso
+        $window = $windowFactory.Create($handle)
+        $windowList.Add($window)
     }
 
     # Sort by z-order
-    $windowPsoList2 = $windowPsoList | Sort-Object -Property ZOrder
+    #
+    # The process returns an Array instead of a List. Since it's not a problem, we'll choose not to worry about it.
+    $windowList2 = $windowList | Sort-Object -Property ZOrder
 
-    return $windowPsoList2
+    return $windowList2
 }
 
-function Move-Windows {
+function Move-WindowsCascaded {
+    [CmdletBinding(SupportsShouldProcess)]
     param(
         [Parameter(Mandatory)]
         [System.Drawing.Rectangle]$WorkingArea,
 
         [Parameter(Mandatory)]
-        [System.Collections.Generic.List[PSObject]]$WindowPsoList,
+        [System.Collections.Generic.List[Window]]$WindowList,
 
         [int]$Margin = 16,
         [int]$CascadeStepX = 160,
@@ -301,7 +339,7 @@ function Move-Windows {
     $cascadeHeight = $cascadeRect.Bottom - $cascadeRect.Top
 
     # Calculate window dimensions
-    $windowsCount = $WindowPsoList.Count
+    $windowsCount = $WindowList.Count
     $windowWidth = [int]($cascadeWidth - $CascadeStepX * ($windowsCount - 1))
     $windowHeight = [int]($cascadeHeight - $CascadeStepY * ($windowsCount - 1))
 
@@ -310,43 +348,49 @@ function Move-Windows {
     # Some applications such like google chrome, etc are changed z-order when resizing/moving.
     # So, we move windows in z-order from bottom to top.
     for ($index = $windowsCount - 1; $index -ge 0; $index--) {
-        $pso = $WindowPsoList[$index]
+        $window = $WindowList[$index]
+        $handle = $window.Handle
+        $title = $window.Title
 
-        $handle = $pso.Handle
+        $target = "${handle} (title: ${title})"
 
+        # Restore maximized windows
+        $SW_RESTORE = 9
+        $operation1 = "Restore window"
+        if ([User32]::IsZoomed($handle)) {
+            if ($PSCmdlet.ShouldProcess($target, $operation1)) {
+                [User32]::ShowWindow($handle, $SW_RESTORE) | Out-Null
+            }
+        }
+
+        # Move window
         $x = $cascadeRect.Left + $CascadeStepX * $index
         $y = $cascadeRect.Top + $CascadeStepY * $index
-
-        $NO_FLAGS = 0
-        $isOk = [User32]::SetWindowPos($handle, [IntPtr]::Zero, $x, $y, $windowWidth, $windowHeight, $NO_FLAGS)
-        if (-not $isOk) {
-            throw "Failed to move window: $handle $($pso.Title)"
+        $operation2 = "Move to (x: ${x}, y: ${y}, w: ${windowWidth}, h: ${windowHeight})"
+        if ($PSCmdlet.ShouldProcess($target, $operation2)) {
+            $NO_FLAGS = 0
+            $isOk = [User32]::SetWindowPos($handle, [IntPtr]::Zero, $x, $y, $windowWidth, $windowHeight, $NO_FLAGS)
+            if (-not $isOk) {
+                throw "Failed to move window: ${handle} ${title}"
+            }
         }
     }
 }
 
 function Invoke-CascadeWindows {
+    [CmdletBinding(SupportsShouldProcess)]
     param()
 
     # Get window list
-    $windowPsoList = Get-WindowPsoList
-    $windowPsoList
-
-    # Restore maximized windows
-    $SW_RESTORE = 9
-    foreach ($pso in $windowPsoList) {
-        $handle = $pso.Handle
-        if ($handle -ne [IntPtr]::Zero -and [User32]::IsZoomed($handle)) {
-            [User32]::ShowWindow($handle, $SW_RESTORE) | Out-Null
-        }
-    }
+    $windowList = Get-WindowList
+    $windowList
 
     # Get working area of the primary screen
     $primaryScreen = [System.Windows.Forms.Screen]::PrimaryScreen
     $workingArea = $primaryScreen.WorkingArea
 
     # Cascade windows
-    Move-Windows -WorkingArea $workingArea -WindowPsoList $windowPsoList
+    Move-WindowsCascaded -WorkingArea $workingArea -WindowList $windowList
 }
 
 if ($MyInvocation.InvocationName -eq '.') {
