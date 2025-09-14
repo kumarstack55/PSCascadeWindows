@@ -9,15 +9,15 @@ This PowerShell script cascades all visible windows on the desktop.
 Starting with Windows 11, Microsoft no longer provides a built-in feature for cascading windows.
 
 <https://learn.microsoft.com/en-us/answers/questions/5516749/cascade-windows-11>
-
 > Windows 11 doesn’t include a built-in "Cascade Windows" option like previous versions, but you can use Snap Layouts to quickly organize your open apps on the screen.
 
-Cascade windows are useful when the screen is narrow, to view more of the last line or so of each window, or for other reasons.
+Older versions of Windows supported cascading windows.
+This feature is useful. For example, it's handy when using a narrow screen.
 
-In addition, compared to the Cascade windows that Windows used to provide by default, it would be even better if cascade windows could be implemented as follows.
+The following would make it even more convenient:
 
-- When displaying windows in cascade view, make the top-right corner of each window wider to allow access to the window behind it. Make it wider than the close button to prevent accidentally closing the window.
-- We want to display the last line of the terminal in cascaded windows.
+- Easier selection of the window behind via the top-right corner. This prevents accidentally clicking the close button.
+- Displaying the last line of the window behind at the bottom. This allows viewing the latest log line with `tail -f`.
 
 ## Requirements
 
