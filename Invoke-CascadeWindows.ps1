@@ -228,6 +228,25 @@ function Test-IsCloakedWindow {
     return $isCloaked -ne 0
 }
 
+function Test-CanMoveAndResizeWindow {
+    param(
+        [Parameter(Mandatory)]
+        [IntPtr]$Handle
+    )
+
+    # Some windows cannot be moved/resized correctly unless we call SetWindowPos once.
+    # So, we call SetWindowPos here to ensure that the window can be moved/resized later.
+    # If SetWindowPos fails, we assume that the window cannot be moved/resized.
+    $rect = New-Object RECT
+    $isOk = [User32]::GetWindowRect($handle, [ref]$rect)
+    if (-not $isOk) {
+        throw "Failed to get window rect for handle ${handle}."
+    }
+    $isOk = [User32]::SetWindowPos($handle, [IntPtr]::Zero, $rect.Left, $rect.Top, $rect.Right - $rect.Left, $rect.Bottom - $rect.Top, 0)
+
+    return $isOk
+}
+
 filter Select-NormalWindow {
     process {
         $handle = $_
@@ -249,6 +268,11 @@ filter Select-NormalWindow {
 
         # Skip windows that are too small
         if (Test-TooSmallWindow -Handle $handle) {
+            return
+        }
+
+        # Skip windows that cannot move/resize
+        if (-not (Test-CanMoveAndResizeWindow -Handle $handle)) {
             return
         }
 
